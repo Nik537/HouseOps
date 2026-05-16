@@ -1,0 +1,50 @@
+{
+  "rules": {
+    ".read": false,
+    ".write": false,
+    "households": {
+      "$householdId": {
+        "chores": {
+          ".read": true,
+          ".write": "newData.exists() === false || newData.hasChildren()",
+          "$choreId": {
+            ".write": "newData.exists() ? newData.hasChildren(['title', 'area', 'cadence', 'minutes', 'ownerId', 'dueDay', 'dueTime', 'preference', 'done']) : true",
+            "title": {
+              ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 80"
+            },
+            "area": {
+              ".validate": "newData.isString() && newData.val().length <= 60"
+            },
+            "cadence": {
+              ".validate": "newData.isString() && newData.val().length <= 40"
+            },
+            "minutes": {
+              ".validate": "newData.isNumber() && newData.val() >= 1 && newData.val() <= 180"
+            },
+            "ownerId": {
+              ".validate": "newData.val() === 'nik' || newData.val() === 'ana' || newData.val() === 'luka' || newData.val() === 'sara'"
+            },
+            "dueDay": {
+              ".validate": "newData.val() === 'Mon' || newData.val() === 'Tue' || newData.val() === 'Wed' || newData.val() === 'Thu' || newData.val() === 'Fri' || newData.val() === 'Sat' || newData.val() === 'Sun'"
+            },
+            "dueTime": {
+              ".validate": "newData.isString() && newData.val().matches(/^[0-2][0-9]:[0-5][0-9]$/)"
+            },
+            "preference": {
+              ".validate": "newData.val() === 'love' || newData.val() === 'like' || newData.val() === 'neutral' || newData.val() === 'dislike' || newData.val() === 'hard-no'"
+            },
+            "done": {
+              ".validate": "newData.isBoolean()"
+            },
+            "createdAt": {
+              ".validate": "newData.isNumber()"
+            },
+            "$other": {
+              ".validate": false
+            }
+          }
+        }
+      }
+    }
+  }
+}

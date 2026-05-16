@@ -1,0 +1,17 @@
+{
+  "name": "HouseOps",
+  "short_name": "HouseOps",
+  "description": "Shared chore calendar for roommates.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f7f8f5",
+  "theme_color": "#0f766e",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
