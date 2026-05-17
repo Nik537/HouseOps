@@ -5,7 +5,6 @@ import {
   CalendarDays,
   Check,
   Heart,
-  LogOut,
   Plus,
   RotateCcw,
   Sparkles,
@@ -39,9 +38,15 @@ type Chore = {
   createdAt?: number
 }
 
+type NotificationSettings = {
+  enabled: boolean
+  leadMinutes: number
+}
+
 const HOUSEHOLD_ID = 'houseops-home'
 const STORAGE_KEY = 'houseops-chores-v2'
 const USER_KEY = 'houseops-current-user'
+const NOTIFICATION_SETTINGS_KEY = 'houseops-notification-settings'
 
 const roommates: Roommate[] = [
   { id: 'nik', name: 'Nik', initials: 'N', color: '#0f766e' },
@@ -74,6 +79,14 @@ const dayLabels: Record<string, string> = {
   Ned: 'Nedelja',
 }
 
+const cadenceOptions = ['Dnevno', 'Tedensko', 'Dvakrat tedensko', 'Na dva tedna', 'Mesečno', 'Po potrebi']
+const reminderLeadOptions = [
+  { value: '0', label: 'Ob času opravila' },
+  { value: '15', label: '15 minut prej' },
+  { value: '30', label: '30 minut prej' },
+  { value: '60', label: '1 uro prej' },
+]
+
 const starterChores: Omit<Chore, 'id'>[] = [
   starter('Kuhinjski reset', 'Kuhinja', 'Dnevno', 18, 'nik', 'Pon', '20:00'),
   starter('Očisti kopalnico', 'Kopalnica', 'Tedensko', 35, 'lucia', 'Sob', '11:00'),
@@ -105,6 +118,7 @@ function App() {
   const [loading, setLoading] = useState(isFirebaseConfigured)
   const [newTitle, setNewTitle] = useState('')
   const [newArea, setNewArea] = useState('Kuhinja')
+  const [newCadence, setNewCadence] = useState('Tedensko')
   const [newAssignee, setNewAssignee] = useState<UserId>('nik')
   const [selectedDay, setSelectedDay] = useState('Pon')
   const [syncMode, setSyncMode] = useState<'firebase' | 'local'>(
@@ -112,6 +126,9 @@ function App() {
   )
   const [notificationPermission, setNotificationPermission] = useState<NotificationPermission | 'unsupported'>(
     getNotificationPermission(),
+  )
+  const [notificationSettings, setNotificationSettings] = useState<NotificationSettings>(() =>
+    loadNotificationSettings(),
   )
 
   const choresRef = useMemo(
@@ -184,12 +201,17 @@ function App() {
   }, [currentUserId])
 
   useEffect(() => {
+    window.localStorage.setItem(NOTIFICATION_SETTINGS_KEY, JSON.stringify(notificationSettings))
+  }, [notificationSettings])
+
+  useEffect(() => {
+    if (!notificationSettings.enabled) return
     if (!currentUser || notificationPermission !== 'granted') return
 
     const timers = chores
       .filter((chore) => chore.assigneeId === currentUser.id && !chore.done)
       .map((chore) => {
-        const delay = millisecondsUntilDue(chore.dueDay, chore.dueTime)
+        const delay = millisecondsUntilDue(chore.dueDay, chore.dueTime, notificationSettings.leadMinutes)
         if (delay < 0 || delay > 1000 * 60 * 60 * 8) return null
 
         const key = `${currentUser.id}-${chore.id}-${new Date().toDateString()}`
@@ -203,7 +225,7 @@ function App() {
       .filter((timer): timer is number => timer !== null)
 
     return () => timers.forEach((timer) => window.clearTimeout(timer))
-  }, [chores, currentUser, notificationPermission])
+  }, [chores, currentUser, notificationPermission, notificationSettings])
 
   async function chooseUser(userId: UserId) {
     setCurrentUserId(userId)
@@ -217,7 +239,7 @@ function App() {
     const chore: Omit<Chore, 'id'> = {
       title,
       area: newArea.trim() || 'Splošno',
-      cadence: 'Tedensko',
+      cadence: newCadence,
       minutes: 15,
       assigneeId: newAssignee,
       dueDay: selectedDay,
@@ -300,13 +322,12 @@ function App() {
     }
   }
 
-  const selectedChores = chores.filter((chore) => chore.dueDay === selectedDay)
-  const upcomingChores = chores.filter((chore) =>
-    currentUser ? chore.assigneeId === currentUser.id || ['Pon', 'Tor', 'Sre'].includes(chore.dueDay) : true,
-  )
-  const completedCount = chores.filter((chore) => chore.done).length
-  const totalMinutes = chores.reduce((sum, chore) => sum + chore.minutes, 0)
-  const myChoresCount = currentUser ? chores.filter((chore) => chore.assigneeId === currentUser.id).length : 0
+  const myChores = currentUser ? chores.filter((chore) => chore.assigneeId === currentUser.id) : []
+  const selectedChores = myChores.filter((chore) => chore.dueDay === selectedDay)
+  const upcomingChores = myChores
+  const myCompletedCount = myChores.filter((chore) => chore.done).length
+  const totalMinutes = myChores.reduce((sum, chore) => sum + chore.minutes, 0)
+  const myChoresCount = myChores.length
 
   if (!currentUser) {
     return <LoginScreen onChoose={chooseUser} />
@@ -325,80 +346,38 @@ function App() {
           </span>
           <div>
             <strong>{currentUser.name}</strong>
-            <button type="button" onClick={() => setCurrentUserId(null)}>
-              <LogOut size={14} />
-              Zamenjaj
-            </button>
+            <span>Nastavitve spodaj</span>
           </div>
         </div>
       </section>
 
-      <section className="profile-switcher" aria-label="Izberi osebo">
-        {roommates.map((roommate) => (
-          <button
-            className={roommate.id === currentUser.id ? 'person-button active' : 'person-button'}
-            key={roommate.id}
-            type="button"
-            onClick={() => void chooseUser(roommate.id)}
-          >
-            <span className="avatar" style={{ backgroundColor: roommate.color }}>
-              {roommate.initials}
-            </span>
-            {roommate.name}
-          </button>
-        ))}
-      </section>
-
       <section className="stats-grid" aria-label="Tedensko stanje">
-        <StatusTile icon={<CalendarDays />} label="Opravila" value={chores.length.toString()} />
-        <StatusTile icon={<Check />} label="Končano" value={`${completedCount}/${chores.length}`} />
-        <StatusTile icon={<UserRound />} label="Moja" value={myChoresCount.toString()} />
+        <StatusTile icon={<CalendarDays />} label="Moja opravila" value={myChoresCount.toString()} />
+        <StatusTile icon={<Check />} label="Moje končano" value={`${myCompletedCount}/${myChoresCount}`} />
+        <StatusTile icon={<UserRound />} label="Vsa opravila" value={chores.length.toString()} />
         <StatusTile icon={<Bell />} label="Minute" value={totalMinutes.toString()} />
-      </section>
-
-      <section className="panel notification-panel">
-        <div>
-          <h2>Obvestila</h2>
-          <p>{notificationStatusText(notificationPermission)}</p>
-        </div>
-        <div className="notification-actions">
-          <button className="ghost-button" type="button" onClick={requestNotifications}>
-            <Bell size={16} />
-            Vklopi
-          </button>
-          <button
-            className="ghost-button"
-            type="button"
-            disabled={notificationPermission !== 'granted'}
-            onClick={() => showNotification('Test HouseOps', `${currentUser.name}, obvestila delujejo.`)}
-          >
-            Test
-          </button>
-        </div>
       </section>
 
       <section className="panel today-panel">
         <div className="panel-heading">
           <div>
-            <h2>Danes in naslednje</h2>
+            <h2>Moja opravila</h2>
             <p>{syncMode === 'firebase' ? 'Sinhronizirano s Firebase' : 'Lokalni način'}</p>
           </div>
-          <button className="ghost-button" type="button" onClick={resetStarters}>
-            <RotateCcw size={16} />
-            Ponastavi
-          </button>
         </div>
 
         <div className="today-list">
           {loading ? (
             <p className="muted">Nalagam opravila...</p>
+          ) : upcomingChores.length === 0 ? (
+            <p className="muted">Trenutno nimaš dodeljenih opravil.</p>
           ) : (
-            upcomingChores.slice(0, 5).map((chore) => (
+            upcomingChores.map((chore) => (
               <ChoreRow
                 chore={chore}
                 currentUserId={currentUser.id}
                 key={chore.id}
-                onDelete={removeChore}
+                readOnly
                 onRate={rateChore}
                 onUpdate={updateChore}
               />
@@ -410,14 +389,14 @@ function App() {
       <section className="calendar-panel panel">
         <div className="panel-heading">
           <div>
-            <h2>Tedenski koledar</h2>
-            <p>Izberi dan in poglej razpored.</p>
+            <h2>Moj tedenski koledar</h2>
+            <p>Prikazana so samo opravila za {currentUser.name}.</p>
           </div>
         </div>
 
         <div className="day-strip" role="tablist" aria-label="Dnevi">
           {days.map((day) => {
-            const dayCount = chores.filter((chore) => chore.dueDay === day).length
+            const dayCount = myChores.filter((chore) => chore.dueDay === day).length
             return (
               <button
                 className={day === selectedDay ? 'day-pill active' : 'day-pill'}
@@ -442,7 +421,7 @@ function App() {
                 compact
                 currentUserId={currentUser.id}
                 key={chore.id}
-                onDelete={removeChore}
+                readOnly
                 onRate={rateChore}
                 onUpdate={updateChore}
               />
@@ -451,35 +430,114 @@ function App() {
         </div>
       </section>
 
-      <section className="panel preferences-panel">
+      <section className="panel settings-panel">
         <div className="panel-heading">
           <div>
-            <h2>Moja lestvica</h2>
-            <p>{currentUser.name}, tako ocenjuješ opravila.</p>
-          </div>
-          <Sparkles size={20} />
-        </div>
-
-        <div className="preference-grid">
-          {preferenceOptions.map((option) => (
-            <div className={`preference-card preference-${option.value}`} key={option.value}>
-              <span>{option.label}</span>
-              <strong>{option.score}</strong>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      <section className="panel ratings-settings-panel">
-        <div className="panel-heading">
-          <div>
-            <h2>Nastavitve ocen</h2>
-            <p>Ocene urejaš kot uporabnik {currentUser.name}.</p>
+            <h2>Nastavitve</h2>
+            <p>Profil, obvestila, ocene in opravila.</p>
           </div>
           <UserRound size={20} />
         </div>
 
-        <div className="settings-ratings-list">
+        <div className="settings-section">
+          <div className="settings-section-heading">
+            <h3>Kdo sem?</h3>
+            <p>Vse ocene in opomniki se vežejo na izbranega uporabnika.</p>
+          </div>
+          <div className="profile-switcher" aria-label="Izberi osebo">
+            {roommates.map((roommate) => (
+              <button
+                className={roommate.id === currentUser.id ? 'person-button active' : 'person-button'}
+                key={roommate.id}
+                type="button"
+                onClick={() => void chooseUser(roommate.id)}
+              >
+                <span className="avatar" style={{ backgroundColor: roommate.color }}>
+                  {roommate.initials}
+                </span>
+                {roommate.name}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="settings-section">
+          <div className="settings-section-heading">
+            <h3>Obvestila</h3>
+            <p>{notificationStatusText(notificationPermission)}</p>
+          </div>
+          <div className="notification-settings-grid">
+            <label className="toggle-row">
+              <input
+                checked={notificationSettings.enabled}
+                type="checkbox"
+                onChange={(event) =>
+                  setNotificationSettings((current) => ({
+                    ...current,
+                    enabled: event.target.checked,
+                  }))
+                }
+              />
+              Opomniki so vklopljeni
+            </label>
+            <label>
+              Kdaj naj opomni?
+              <select
+                value={notificationSettings.leadMinutes.toString()}
+                onChange={(event) =>
+                  setNotificationSettings((current) => ({
+                    ...current,
+                    leadMinutes: Number(event.target.value),
+                  }))
+                }
+              >
+                {reminderLeadOptions.map((option) => (
+                  <option value={option.value} key={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <div className="notification-actions">
+              <button className="ghost-button" type="button" onClick={requestNotifications}>
+                <Bell size={16} />
+                Vklopi
+              </button>
+              <button
+                className="ghost-button"
+                type="button"
+                disabled={notificationPermission !== 'granted'}
+                onClick={() => showNotification('Test HouseOps', `${currentUser.name}, obvestila delujejo.`)}
+              >
+                Test
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div className="settings-section">
+          <div className="settings-section-heading">
+            <h3>Moja lestvica</h3>
+            <p>{currentUser.name}, tako ocenjuješ opravila.</p>
+            <Sparkles size={18} />
+          </div>
+
+          <div className="preference-grid">
+            {preferenceOptions.map((option) => (
+              <div className={`preference-card preference-${option.value}`} key={option.value}>
+                <span>{option.label}</span>
+                <strong>{option.score}</strong>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="settings-section">
+          <div className="settings-section-heading">
+            <h3>Nastavitve ocen</h3>
+            <p>Ocene urejaš kot uporabnik {currentUser.name}.</p>
+          </div>
+          <div className="settings-ratings-list">
           {chores.map((chore) => (
             <div className="settings-rating-row" key={chore.id}>
               <div>
@@ -503,18 +561,16 @@ function App() {
               </select>
             </div>
           ))}
-        </div>
-      </section>
-
-      <section className="panel manage-panel">
-        <div className="panel-heading">
-          <div>
-            <h2>Uredi opravila</h2>
-            <p>Dodaj manjkajoče opravilo ali odstrani tisto, ki ni več aktualno.</p>
           </div>
         </div>
 
-        <form
+        <div className="settings-section manage-panel">
+          <div className="settings-section-heading">
+            <h3>Uredi pravila</h3>
+            <p>Dodaj opravilo ali spremeni osebo, dan in pogostost.</p>
+          </div>
+
+          <form
           className="add-form"
           onSubmit={(event) => {
             event.preventDefault()
@@ -538,6 +594,16 @@ function App() {
             />
           </label>
           <label>
+            Pogostost
+            <select value={newCadence} onChange={(event) => setNewCadence(event.target.value)}>
+              {cadenceOptions.map((cadence) => (
+                <option value={cadence} key={cadence}>
+                  {cadence}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
             Oseba
             <select
               value={newAssignee}
@@ -554,16 +620,63 @@ function App() {
             <Plus size={18} />
             Dodaj
           </button>
-        </form>
+          </form>
+          <button className="ghost-button reset-button" type="button" onClick={resetStarters}>
+            <RotateCcw size={16} />
+            Ponastavi začetna opravila
+          </button>
 
-        <div className="all-chores">
+          <div className="all-chores">
           {chores.map((chore) => (
             <div className="manage-row" key={chore.id}>
               <div>
                 <strong>{chore.title}</strong>
                 <span>
-                  {chore.area} · {chore.cadence}
+                  {chore.area} · {chore.dueTime}
                 </span>
+              </div>
+              <div className="manage-controls">
+                <label>
+                  Oseba
+                  <select
+                    value={chore.assigneeId}
+                    onChange={(event) =>
+                      void updateChore(chore.id, { assigneeId: event.target.value as UserId })
+                    }
+                  >
+                    {roommates.map((roommate) => (
+                      <option value={roommate.id} key={roommate.id}>
+                        {roommate.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  Dan
+                  <select
+                    value={chore.dueDay}
+                    onChange={(event) => void updateChore(chore.id, { dueDay: event.target.value })}
+                  >
+                    {days.map((day) => (
+                      <option value={day} key={day}>
+                        {day}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  Pogostost
+                  <select
+                    value={chore.cadence}
+                    onChange={(event) => void updateChore(chore.id, { cadence: event.target.value })}
+                  >
+                    {cadenceOptions.map((cadence) => (
+                      <option value={cadence} key={cadence}>
+                        {cadence}
+                      </option>
+                    ))}
+                  </select>
+                </label>
               </div>
               <button
                 aria-label={`Izbriši ${chore.title}`}
@@ -575,6 +688,7 @@ function App() {
               </button>
             </div>
           ))}
+          </div>
         </div>
       </section>
     </main>
@@ -628,6 +742,7 @@ function ChoreRow({
   chore,
   compact = false,
   currentUserId,
+  readOnly = false,
   onDelete,
   onRate,
   onUpdate,
@@ -635,7 +750,8 @@ function ChoreRow({
   chore: Chore
   compact?: boolean
   currentUserId: UserId
-  onDelete: (id: string) => Promise<void>
+  readOnly?: boolean
+  onDelete?: (id: string) => Promise<void>
   onRate: (id: string, preference: Preference) => Promise<void>
   onUpdate: (id: string, patch: Partial<Chore>) => Promise<void>
 }) {
@@ -643,7 +759,7 @@ function ChoreRow({
   const myRating = chore.ratings?.[currentUserId] ?? 'neutral'
 
   return (
-    <article className={compact ? 'chore-row compact' : 'chore-row'}>
+    <article className={`${compact ? 'chore-row compact' : 'chore-row'}${readOnly ? ' read-only' : ''}`}>
       <button
         className={chore.done ? 'done-toggle complete' : 'done-toggle'}
         type="button"
@@ -658,40 +774,46 @@ function ChoreRow({
           {chore.area} · {chore.cadence} · {chore.minutes} min
         </span>
       </div>
-      <select
-        aria-label={`Dodeli opravilo ${chore.title}`}
-        value={chore.assigneeId}
-        onChange={(event) => void onUpdate(chore.id, { assigneeId: event.target.value as UserId })}
-      >
-        {roommates.map((person) => (
-          <option value={person.id} key={person.id}>
-            {person.name}
-          </option>
-        ))}
-      </select>
-      <select
-        aria-label={`Moja ocena za ${chore.title}`}
-        value={myRating}
-        onChange={(event) => void onRate(chore.id, event.target.value as Preference)}
-      >
-        {preferenceOptions.map((option) => (
-          <option value={option.value} key={option.value}>
-            {option.shortLabel}
-          </option>
-        ))}
-      </select>
+      {!readOnly && (
+        <>
+          <select
+            aria-label={`Dodeli opravilo ${chore.title}`}
+            value={chore.assigneeId}
+            onChange={(event) => void onUpdate(chore.id, { assigneeId: event.target.value as UserId })}
+          >
+            {roommates.map((person) => (
+              <option value={person.id} key={person.id}>
+                {person.name}
+              </option>
+            ))}
+          </select>
+          <select
+            aria-label={`Moja ocena za ${chore.title}`}
+            value={myRating}
+            onChange={(event) => void onRate(chore.id, event.target.value as Preference)}
+          >
+            {preferenceOptions.map((option) => (
+              <option value={option.value} key={option.value}>
+                {option.shortLabel}
+              </option>
+            ))}
+          </select>
+        </>
+      )}
       <span className="owner-chip" style={{ borderColor: assignee.color }}>
         <Heart size={13} />
         {chore.dueDay} {chore.dueTime}
       </span>
-      <button
-        aria-label={`Izbriši ${chore.title}`}
-        className="icon-button danger"
-        type="button"
-        onClick={() => void onDelete(chore.id)}
-      >
-        <Trash2 size={16} />
-      </button>
+      {!readOnly && onDelete && (
+        <button
+          aria-label={`Izbriši ${chore.title}`}
+          className="icon-button danger"
+          type="button"
+          onClick={() => void onDelete(chore.id)}
+        >
+          <Trash2 size={16} />
+        </button>
+      )}
     </article>
   )
 }
@@ -739,6 +861,22 @@ function loadCurrentUser(): UserId | null {
   return roommates.some((roommate) => roommate.id === stored) ? (stored as UserId) : null
 }
 
+function loadNotificationSettings(): NotificationSettings {
+  try {
+    const stored = window.localStorage.getItem(NOTIFICATION_SETTINGS_KEY)
+    const parsed = stored ? (JSON.parse(stored) as Partial<NotificationSettings>) : {}
+    return {
+      enabled: parsed.enabled ?? true,
+      leadMinutes: typeof parsed.leadMinutes === 'number' ? parsed.leadMinutes : 15,
+    }
+  } catch {
+    return {
+      enabled: true,
+      leadMinutes: 15,
+    }
+  }
+}
+
 function normalizeChore(id: string, value: unknown): Chore {
   const chore = value as Partial<Chore> & {
     ownerId?: UserId
@@ -781,13 +919,14 @@ function showNotification(title: string, body: string) {
   })
 }
 
-function millisecondsUntilDue(day: string, time: string) {
+function millisecondsUntilDue(day: string, time: string, leadMinutes: number) {
   const now = new Date()
   const target = new Date(now)
   const [hours, minutes] = time.split(':').map(Number)
   const today = days[(now.getDay() + 6) % 7]
   if (day !== today || Number.isNaN(hours) || Number.isNaN(minutes)) return -1
   target.setHours(hours, minutes, 0, 0)
+  target.setMinutes(target.getMinutes() - leadMinutes)
   return target.getTime() - now.getTime()
 }
 
