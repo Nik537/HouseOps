@@ -516,50 +516,6 @@ summary:focus-visible,
   font-size: 1.05rem;
 }
 
-.preference-grid {
-  display: grid;
-  gap: 10px;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
-}
-
-.preference-card {
-  background: var(--surface-soft);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  color: var(--text);
-  min-height: 78px;
-  padding: 10px;
-  text-align: left;
-}
-
-.preference-card span,
-.preference-card strong {
-  display: block;
-}
-
-.preference-card span {
-  font-size: 0.82rem;
-  font-weight: 760;
-}
-
-.preference-card strong {
-  font-size: 1.4rem;
-  margin-top: 10px;
-}
-
-.preference-love,
-.preference-like {
-  background: #e1f6f2;
-}
-
-.preference-dislike {
-  background: #fff4dd;
-}
-
-.preference-hard-no {
-  background: #fff0ed;
-}
-
 .settings-panel {
   display: grid;
   gap: 18px;
@@ -857,10 +813,6 @@ summary:focus-visible,
     grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 
-  .preference-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
   .settings-rating-row {
     grid-template-columns: 1fr;
   }
@@ -918,10 +870,6 @@ summary:focus-visible,
 
   .day-strip {
     grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .preference-grid {
-    grid-template-columns: 1fr;
   }
 
   .profile-switcher .person-button {

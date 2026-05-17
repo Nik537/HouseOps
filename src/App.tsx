@@ -7,7 +7,6 @@ import {
   Heart,
   Plus,
   RotateCcw,
-  Sparkles,
   Trash2,
   UserRound,
 } from 'lucide-react'
@@ -532,23 +531,6 @@ function App() {
                 Test
               </button>
             </div>
-          </div>
-        </details>
-
-        <details className="settings-section">
-          <summary className="settings-section-heading">
-            <h3>Moja lestvica</h3>
-            <p>{currentUser.name}, tako ocenjuješ opravila.</p>
-            <Sparkles size={18} />
-          </summary>
-
-          <div className="preference-grid">
-            {preferenceOptions.map((option) => (
-              <div className={`preference-card preference-${option.value}`} key={option.value}>
-                <span>{option.label}</span>
-                <strong>{option.score}</strong>
-              </div>
-            ))}
           </div>
         </details>
 
