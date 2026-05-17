@@ -470,6 +470,42 @@ function App() {
         </div>
       </section>
 
+      <section className="panel ratings-settings-panel">
+        <div className="panel-heading">
+          <div>
+            <h2>Nastavitve ocen</h2>
+            <p>Ocene urejaš kot uporabnik {currentUser.name}.</p>
+          </div>
+          <UserRound size={20} />
+        </div>
+
+        <div className="settings-ratings-list">
+          {chores.map((chore) => (
+            <div className="settings-rating-row" key={chore.id}>
+              <div>
+                <strong>{chore.title}</strong>
+                <span>
+                  {chore.area} · {chore.cadence} · {chore.dueDay} {chore.dueTime}
+                </span>
+              </div>
+              <select
+                aria-label={`Nastavitve: moja ocena za ${chore.title}`}
+                value={chore.ratings?.[currentUser.id] ?? 'neutral'}
+                onChange={(event) =>
+                  void rateChore(chore.id, event.target.value as Preference)
+                }
+              >
+                {preferenceOptions.map((option) => (
+                  <option value={option.value} key={option.value}>
+                    {option.shortLabel}
+                  </option>
+                ))}
+              </select>
+            </div>
+          ))}
+        </div>
+      </section>
+
       <section className="panel manage-panel">
         <div className="panel-heading">
           <div>
