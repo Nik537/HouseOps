@@ -771,6 +771,28 @@ summary:focus-visible,
   justify-self: start;
 }
 
+.recalculate-panel {
+  align-items: start;
+  background: #eef8f6;
+  border: 1px solid rgba(15, 118, 110, 0.22);
+  border-radius: 8px;
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+}
+
+.recalculate-panel p,
+.recalculate-panel strong {
+  color: var(--muted);
+  font-size: 0.86rem;
+  line-height: 1.4;
+  margin: 0;
+}
+
+.recalculate-panel strong {
+  color: var(--teal-strong);
+}
+
 @media (max-width: 820px) {
   .app-shell {
     padding: 14px;

@@ -82,6 +82,13 @@ const dayLabels: Record<string, string> = {
 }
 
 const cadenceOptions = ['Dnevno', 'Tedensko', 'Dvakrat tedensko', 'Na dva tedna', 'Mesečno']
+const preferenceWeights: Record<Preference, number> = {
+  love: 45,
+  like: 25,
+  neutral: 8,
+  dislike: -18,
+  'hard-no': -80,
+}
 
 const starterChores: Omit<Chore, 'id'>[] = [
   starter('Kuhinjski reset', 'Kuhinja', 'Dnevno', 18, 'nik', 'Pon'),
@@ -122,6 +129,7 @@ function App() {
   const [newCadence, setNewCadence] = useState('Tedensko')
   const [newCustomCadenceDays, setNewCustomCadenceDays] = useState(10)
   const [newAssignee, setNewAssignee] = useState<UserId>('nik')
+  const [recalculateSummary, setRecalculateSummary] = useState('')
   const [selectedDay, setSelectedDay] = useState('Pon')
   const [syncMode, setSyncMode] = useState<'firebase' | 'local'>(
     isFirebaseConfigured ? 'firebase' : 'local',
@@ -325,6 +333,37 @@ function App() {
     if (!window.confirm('Ponastavim lokalna začetna opravila? To prepiše trenutni lokalni seznam.')) return
 
     setChores(withIds(starterChores))
+  }
+
+  async function recalculateAssignments() {
+    if (chores.length === 0) return
+
+    const result = calculateAssignments(chores)
+    if (result.changes.length === 0) {
+      setRecalculateSummary('Razpored je že uravnotežen glede na trenutne ocene.')
+      return
+    }
+
+    if (!window.confirm(`Rekalkuliram in premaknem ${result.changes.length} opravil?`)) return
+
+    if (syncMode === 'firebase' && isFirebaseConfigured) {
+      await Promise.all(
+        result.changes.map((change) =>
+          update(ref(database, `households/${HOUSEHOLD_ID}/chores/${change.id}`), {
+            assigneeId: change.assigneeId,
+          }),
+        ),
+      )
+    } else {
+      setChores((current) =>
+        current.map((chore) => ({
+          ...chore,
+          assigneeId: result.assignments[chore.id] ?? chore.assigneeId,
+        })),
+      )
+    }
+
+    setRecalculateSummary(result.summary)
   }
 
   async function requestNotifications() {
@@ -641,6 +680,16 @@ function App() {
               Ponastavi začetna opravila
             </button>
           )}
+          <div className="recalculate-panel">
+            <button className="primary-button" type="button" onClick={() => void recalculateAssignments()}>
+              <RotateCcw size={16} />
+              Rekalkuliraj razpored
+            </button>
+            <p>
+              Upošteva ocene vseh štirih oseb, obstoječa opravila in poskuša razdeliti minute čim bolj pošteno.
+            </p>
+            {recalculateSummary && <strong>{recalculateSummary}</strong>}
+          </div>
 
           <div className="all-chores">
           {chores.map((chore) => (
@@ -991,6 +1040,73 @@ function showNotification(title: string, body: string) {
 
 function preferenceLabel(preference?: Preference) {
   return preferenceOptions.find((option) => option.value === preference)?.shortLabel ?? 'Brez'
+}
+
+function calculateAssignments(chores: Chore[]) {
+  const loads = roommates.reduce<Record<UserId, { count: number; minutes: number }>>(
+    (acc, roommate) => {
+      acc[roommate.id] = { count: 0, minutes: 0 }
+      return acc
+    },
+    {} as Record<UserId, { count: number; minutes: number }>,
+  )
+  const assignments: Record<string, UserId> = {}
+  const totalMinutes = chores.reduce((sum, chore) => sum + chore.minutes, 0)
+  const targetMinutes = Math.max(1, totalMinutes / roommates.length)
+  const targetCount = Math.max(1, chores.length / roommates.length)
+
+  const orderedChores = [...chores].sort((a, b) => {
+    const spread = preferenceSpread(b) - preferenceSpread(a)
+    if (spread !== 0) return spread
+    return b.minutes - a.minutes
+  })
+
+  orderedChores.forEach((chore) => {
+    const hasNonHardNo = roommates.some((roommate) => chore.ratings?.[roommate.id] !== 'hard-no')
+    const candidates = roommates
+      .map((roommate) => {
+        const preference = chore.ratings?.[roommate.id] ?? 'neutral'
+        const hardNoPenalty = preference === 'hard-no' && hasNonHardNo ? -1000 : 0
+        const loadPenalty =
+          (loads[roommate.id].minutes / targetMinutes) * 18 +
+          (loads[roommate.id].count / targetCount) * 10
+
+        return {
+          roommate,
+          score: preferenceWeights[preference] + hardNoPenalty - loadPenalty,
+        }
+      })
+      .sort((a, b) => {
+        if (b.score !== a.score) return b.score - a.score
+        const minuteDiff = loads[a.roommate.id].minutes - loads[b.roommate.id].minutes
+        if (minuteDiff !== 0) return minuteDiff
+        return loads[a.roommate.id].count - loads[b.roommate.id].count
+      })
+
+    const selected = candidates[0].roommate.id
+    assignments[chore.id] = selected
+    loads[selected].minutes += chore.minutes
+    loads[selected].count += 1
+  })
+
+  const changes = chores
+    .map((chore) => ({ id: chore.id, assigneeId: assignments[chore.id] }))
+    .filter((change) => change.assigneeId && chores.find((chore) => chore.id === change.id)?.assigneeId !== change.assigneeId)
+
+  const summary = roommates
+    .map((roommate) => `${roommate.name}: ${loads[roommate.id].count} opravil / ${loads[roommate.id].minutes} min`)
+    .join(' · ')
+
+  return {
+    assignments,
+    changes,
+    summary: `Premaknjenih ${changes.length} opravil. ${summary}`,
+  }
+}
+
+function preferenceSpread(chore: Chore) {
+  const scores = roommates.map((roommate) => preferenceWeights[chore.ratings?.[roommate.id] ?? 'neutral'])
+  return Math.max(...scores) - Math.min(...scores)
 }
 
 function formatCadence(chore: Pick<Chore, 'cadence' | 'intervalDays'>) {
