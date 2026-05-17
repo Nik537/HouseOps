@@ -12,6 +12,7 @@ dist
 dist-ssr
 .firebase
 *.local
+.env.production
 *.png
 firebase-debug.log
 firepit-log.txt

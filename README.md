@@ -15,6 +15,9 @@ Mobilni skupni koledar opravil za štiri cimre.
 - Brskalniška obvestila za opomnike in test obvestil.
 - Firebase Realtime Database sync, z lokalnim fallbackom za razvoj.
 - Firebase Hosting-ready Vite build.
+- V produkciji aplikacija ne preklopi tiho na localStorage, če Firebase sync ne deluje.
+- Database rules validirajo obliko opravil, dovoljene uporabnike, dneve in ocene.
+- Hosting uporablja osnovne security headerje.
 
 ## Lokalni razvoj
 
@@ -31,3 +34,5 @@ Kopiraj `.env.example` v `.env.local` in dodaj Firebase web app config.
 npm run build
 firebase deploy --only database,hosting
 ```
+
+`.env.production` ne sme biti commitan. Za polno zasebnost vklopi Firebase Auth in potem zožaj database rules na prijavljene člane gospodinjstva; trenutna pravila še dovolijo javno branje/pisanje veljavnih opravil, ker anonymous auth na projektu ni vklopljen.

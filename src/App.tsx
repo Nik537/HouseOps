@@ -11,7 +11,7 @@ import {
   Trash2,
   UserRound,
 } from 'lucide-react'
-import { database, isFirebaseConfigured } from './firebase'
+import { database, isFirebaseConfigured, isLocalFallbackEnabled } from './firebase'
 import './App.css'
 
 type UserId = 'nik' | 'lucia' | 'gaj' | 'kaja'
@@ -110,9 +110,14 @@ const starterChores: Omit<Chore, 'id'>[] = [
 function App() {
   const [currentUserId, setCurrentUserId] = useState<UserId | null>(() => loadCurrentUser())
   const [chores, setChores] = useState<Chore[]>(() =>
-    isFirebaseConfigured ? [] : loadLocalChores(),
+    isFirebaseConfigured ? [] : isLocalFallbackEnabled ? loadLocalChores() : [],
   )
   const [loading, setLoading] = useState(isFirebaseConfigured)
+  const [syncError, setSyncError] = useState<string | null>(
+    !isFirebaseConfigured && !isLocalFallbackEnabled
+      ? 'Firebase ni nastavljen, zato sinhronizacija v produkciji ni na voljo.'
+      : null,
+  )
   const [newTitle, setNewTitle] = useState('')
   const [newArea, setNewArea] = useState('Kuhinja')
   const [newCadence, setNewCadence] = useState('Tedensko')
@@ -152,7 +157,11 @@ function App() {
       },
       {},
     )
-    await set(choresRef, seeded)
+    await Promise.all(
+      Object.entries(seeded).map(([id, chore]) =>
+        set(ref(database, `households/${HOUSEHOLD_ID}/chores/${id}`), chore),
+      ),
+    )
   }, [choresRef])
 
   useEffect(() => {
@@ -176,9 +185,13 @@ function App() {
         setLoading(false)
       },
       (error) => {
-        console.warn('Firebase data sync unavailable, using local storage.', error)
-        setChores(loadLocalChores())
-        setSyncMode('local')
+        console.warn('Firebase data sync unavailable.', error)
+        if (isLocalFallbackEnabled) {
+          setChores(loadLocalChores())
+          setSyncMode('local')
+        } else {
+          setSyncError('Povezava s Firebase ni uspela. Podatki niso sinhronizirani.')
+        }
         setLoading(false)
       },
     )
@@ -293,6 +306,9 @@ function App() {
   }
 
   async function removeChore(id: string) {
+    const chore = chores.find((item) => item.id === id)
+    if (chore && !window.confirm(`Izbrišem opravilo "${chore.title}"?`)) return
+
     if (syncMode === 'firebase' && isFirebaseConfigured) {
       await remove(ref(database, `households/${HOUSEHOLD_ID}/chores/${id}`))
       return
@@ -303,10 +319,11 @@ function App() {
 
   async function resetStarters() {
     if (syncMode === 'firebase' && isFirebaseConfigured) {
-      await set(choresRef, null)
-      await seedFirebaseChores()
+      window.alert('Ponastavitev je zaradi varnosti omogočena samo v lokalnem načinu.')
       return
     }
+
+    if (!window.confirm('Ponastavim lokalna začetna opravila? To prepiše trenutni lokalni seznam.')) return
 
     setChores(withIds(starterChores))
   }
@@ -348,16 +365,9 @@ function App() {
           </span>
           <div>
             <strong>{currentUser.name}</strong>
-            <span>Nastavitve spodaj</span>
+            <span>Trenutni profil</span>
           </div>
         </div>
-      </section>
-
-      <section className="stats-grid" aria-label="Tedensko stanje">
-        <StatusTile icon={<CalendarDays />} label="Moja opravila" value={myChoresCount.toString()} />
-        <StatusTile icon={<Check />} label="Moje končano" value={`${myCompletedCount}/${myChoresCount}`} />
-        <StatusTile icon={<UserRound />} label="Vsa opravila" value={chores.length.toString()} />
-        <StatusTile icon={<Bell />} label="Minute" value={totalMinutes.toString()} />
       </section>
 
       <section className="panel today-panel">
@@ -369,7 +379,9 @@ function App() {
         </div>
 
         <div className="today-list">
-          {loading ? (
+          {syncError ? (
+            <p className="sync-error">{syncError}</p>
+          ) : loading ? (
             <p className="muted">Nalagam opravila...</p>
           ) : upcomingChores.length === 0 ? (
             <p className="muted">Trenutno nimaš dodeljenih opravil.</p>
@@ -388,6 +400,13 @@ function App() {
         </div>
       </section>
 
+      <section className="stats-grid" aria-label="Tedensko stanje">
+        <StatusTile icon={<CalendarDays />} label="Moja opravila" value={myChoresCount.toString()} />
+        <StatusTile icon={<Check />} label="Končana opravila" value={`${myCompletedCount}/${myChoresCount}`} />
+        <StatusTile icon={<UserRound />} label="Vsa opravila" value={chores.length.toString()} />
+        <StatusTile icon={<Bell />} label="Skupaj minut" value={totalMinutes.toString()} />
+      </section>
+
       <section className="calendar-panel panel">
         <div className="panel-heading">
           <div>
@@ -396,11 +415,13 @@ function App() {
           </div>
         </div>
 
-        <div className="day-strip" role="tablist" aria-label="Dnevi">
+        <div className="day-strip" aria-label="Dnevi">
           {days.map((day) => {
             const dayCount = myChores.filter((chore) => chore.dueDay === day).length
             return (
               <button
+                aria-label={`${dayLabels[day]}, ${dayCount} opravil`}
+                aria-pressed={day === selectedDay}
                 className={day === selectedDay ? 'day-pill active' : 'day-pill'}
                 key={day}
                 type="button"
@@ -413,7 +434,7 @@ function App() {
           })}
         </div>
 
-        <div className="calendar-list">
+        <div className="calendar-list" aria-live="polite">
           {selectedChores.length === 0 ? (
             <p className="muted">Za {dayLabels[selectedDay]} ni opravil.</p>
           ) : (
@@ -441,11 +462,11 @@ function App() {
           <UserRound size={20} />
         </div>
 
-        <div className="settings-section">
-          <div className="settings-section-heading">
+        <details className="settings-section" open>
+          <summary className="settings-section-heading">
             <h3>Kdo sem?</h3>
             <p>Vse ocene in opomniki se vežejo na izbranega uporabnika.</p>
-          </div>
+          </summary>
           <div className="profile-switcher" aria-label="Izberi osebo">
             {roommates.map((roommate) => (
               <button
@@ -461,13 +482,13 @@ function App() {
               </button>
             ))}
           </div>
-        </div>
+        </details>
 
-        <div className="settings-section">
-          <div className="settings-section-heading">
+        <details className="settings-section" open>
+          <summary className="settings-section-heading">
             <h3>Obvestila</h3>
             <p>{notificationStatusText(notificationPermission)}</p>
-          </div>
+          </summary>
           <div className="notification-settings-grid">
             <label className="toggle-row">
               <input
@@ -495,7 +516,7 @@ function App() {
                   }))
                 }
               />
-              <span>Ljubljana čas</span>
+              <span>Po ljubljanskem času</span>
             </label>
             <div className="notification-actions">
               <button className="ghost-button" type="button" onClick={requestNotifications}>
@@ -512,14 +533,14 @@ function App() {
               </button>
             </div>
           </div>
-        </div>
+        </details>
 
-        <div className="settings-section">
-          <div className="settings-section-heading">
+        <details className="settings-section">
+          <summary className="settings-section-heading">
             <h3>Moja lestvica</h3>
             <p>{currentUser.name}, tako ocenjuješ opravila.</p>
             <Sparkles size={18} />
-          </div>
+          </summary>
 
           <div className="preference-grid">
             {preferenceOptions.map((option) => (
@@ -529,13 +550,13 @@ function App() {
               </div>
             ))}
           </div>
-        </div>
+        </details>
 
-        <div className="settings-section">
-          <div className="settings-section-heading">
+        <details className="settings-section">
+          <summary className="settings-section-heading">
             <h3>Nastavitve ocen</h3>
             <p>Ocene urejaš kot uporabnik {currentUser.name}.</p>
-          </div>
+          </summary>
           <div className="settings-ratings-list">
           {chores.map((chore) => (
             <div className="settings-rating-row" key={chore.id}>
@@ -561,13 +582,13 @@ function App() {
             </div>
           ))}
           </div>
-        </div>
+        </details>
 
-        <div className="settings-section manage-panel">
-          <div className="settings-section-heading">
+        <details className="settings-section manage-panel">
+          <summary className="settings-section-heading">
             <h3>Uredi pravila</h3>
             <p>Dodaj opravilo ali spremeni osebo, dan in pogostost.</p>
-          </div>
+          </summary>
 
           <form
           className="add-form"
@@ -632,10 +653,12 @@ function App() {
             Dodaj
           </button>
           </form>
-          <button className="ghost-button reset-button" type="button" onClick={resetStarters}>
-            <RotateCcw size={16} />
-            Ponastavi začetna opravila
-          </button>
+          {syncMode === 'local' && (
+            <button className="ghost-button reset-button" type="button" onClick={resetStarters}>
+              <RotateCcw size={16} />
+              Ponastavi začetna opravila
+            </button>
+          )}
 
           <div className="all-chores">
           {chores.map((chore) => (
@@ -746,7 +769,7 @@ function App() {
             </div>
           ))}
           </div>
-        </div>
+        </details>
       </section>
     </main>
   )

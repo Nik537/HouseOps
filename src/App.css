@@ -35,12 +35,28 @@ body {
 
 button,
 input,
-select {
+select,
+summary {
   font: inherit;
 }
 
-button {
+button,
+summary {
   cursor: pointer;
+}
+
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+summary:focus-visible,
+.person-button:focus-visible,
+.day-pill:focus-visible,
+.ghost-button:focus-visible,
+.primary-button:focus-visible,
+.icon-button:focus-visible,
+.done-check:has(input:focus-visible) {
+  outline: 3px solid rgba(37, 99, 235, 0.55);
+  outline-offset: 3px;
 }
 
 #root {
@@ -341,6 +357,17 @@ button {
   gap: 10px;
 }
 
+.sync-error {
+  background: #fff0ed;
+  border: 1px solid rgba(240, 93, 79, 0.32);
+  border-radius: 8px;
+  color: #9f2418;
+  font-size: 0.92rem;
+  line-height: 1.45;
+  margin: 0;
+  padding: 12px;
+}
+
 .notification-actions {
   display: flex;
   gap: 8px;
@@ -549,11 +576,52 @@ button {
   padding-top: 18px;
 }
 
+.settings-section summary {
+  list-style: none;
+}
+
+.settings-section summary::-webkit-details-marker {
+  display: none;
+}
+
+.settings-section summary::after {
+  align-self: center;
+  background: var(--surface-soft);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  content: "+";
+  display: inline-flex;
+  font-size: 1rem;
+  font-weight: 850;
+  grid-column: 2;
+  grid-row: 1 / 3;
+  height: 32px;
+  justify-content: center;
+  line-height: 1;
+  padding-top: 5px;
+  width: 32px;
+}
+
+.settings-section[open] summary::after {
+  content: "-";
+}
+
 .settings-section-heading {
   align-items: start;
   display: grid;
   gap: 4px;
   grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.settings-section-heading h3,
+.settings-section-heading p {
+  grid-column: 1;
+}
+
+.settings-section-heading > svg {
+  grid-column: 2;
+  grid-row: 1;
+  margin-right: 42px;
 }
 
 .settings-section-heading h3 {
@@ -786,9 +854,7 @@ button {
   }
 
   .day-strip {
-    grid-template-columns: repeat(7, 62px);
-    overflow-x: auto;
-    padding-bottom: 2px;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 
   .preference-grid {
@@ -841,8 +907,17 @@ button {
 
   .chore-row,
   .chore-row.read-only {
-    grid-template-columns: auto minmax(0, 1fr) auto;
+    grid-template-columns: minmax(100px, auto) minmax(0, 1fr);
     padding: 9px;
+  }
+
+  .chore-row .owner-chip {
+    grid-column: 2;
+    justify-self: start;
+  }
+
+  .day-strip {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .preference-grid {

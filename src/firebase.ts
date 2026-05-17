@@ -19,6 +19,8 @@ export const isFirebaseConfigured = Boolean(
     firebaseConfig.appId,
 )
 
+export const isLocalFallbackEnabled = !isFirebaseConfigured && import.meta.env.DEV
+
 export const firebaseApp = initializeApp(
   isFirebaseConfigured
     ? firebaseConfig

@@ -6,8 +6,50 @@
       "houseops-home": {
         "chores": {
           ".read": true,
-          ".write": true,
-          ".indexOn": ["createdAt", "dueDay", "assigneeId"]
+          ".write": false,
+          ".indexOn": ["createdAt", "dueDay", "assigneeId"],
+          "$choreId": {
+            ".write": true,
+            ".validate": "!newData.exists() || newData.hasChildren(['title', 'area', 'cadence', 'minutes', 'assigneeId', 'dueDay', 'dueTime', 'done'])",
+            "title": {
+              ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 80"
+            },
+            "area": {
+              ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 60"
+            },
+            "cadence": {
+              ".validate": "newData.isString() && (newData.val() === 'Dnevno' || newData.val() === 'Tedensko' || newData.val() === 'Dvakrat tedensko' || newData.val() === 'Na dva tedna' || newData.val() === 'Mesečno' || newData.val() === 'Po meri' || newData.val() === 'Tor / Pet')"
+            },
+            "intervalDays": {
+              ".validate": "newData.isNumber() && newData.val() >= 1 && newData.val() <= 365"
+            },
+            "minutes": {
+              ".validate": "newData.isNumber() && newData.val() >= 1 && newData.val() <= 240"
+            },
+            "assigneeId": {
+              ".validate": "newData.val() === 'nik' || newData.val() === 'lucia' || newData.val() === 'gaj' || newData.val() === 'kaja'"
+            },
+            "dueDay": {
+              ".validate": "newData.val() === 'Pon' || newData.val() === 'Tor' || newData.val() === 'Sre' || newData.val() === 'Čet' || newData.val() === 'Pet' || newData.val() === 'Sob' || newData.val() === 'Ned'"
+            },
+            "dueTime": {
+              ".validate": "newData.isString() && newData.val().matches(/^([01][0-9]|2[0-3]):[0-5][0-9]$/)"
+            },
+            "ratings": {
+              "$userId": {
+                ".validate": "($userId === 'nik' || $userId === 'lucia' || $userId === 'gaj' || $userId === 'kaja') && (newData.val() === 'love' || newData.val() === 'like' || newData.val() === 'neutral' || newData.val() === 'dislike' || newData.val() === 'hard-no')"
+              }
+            },
+            "done": {
+              ".validate": "newData.isBoolean()"
+            },
+            "createdAt": {
+              ".validate": "newData.isNumber() && newData.val() > 0"
+            },
+            "$other": {
+              ".validate": false
+            }
+          }
         }
       }
     }
