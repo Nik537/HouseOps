@@ -559,7 +559,9 @@ button {
 }
 
 .notification-settings-grid select,
-.manage-controls select {
+.notification-settings-grid input[type="time"],
+.manage-controls select,
+.manage-controls input {
   background: #fff;
   border: 1px solid var(--border);
   border-radius: 8px;
@@ -567,6 +569,12 @@ button {
   min-height: 40px;
   padding: 0 10px;
   width: 100%;
+}
+
+.notification-settings-grid label > span {
+  color: var(--muted);
+  font-size: 0.74rem;
+  font-weight: 760;
 }
 
 .toggle-row {
@@ -659,12 +667,46 @@ button {
   min-width: 150px;
 }
 
+.rating-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  max-width: 260px;
+}
+
+.rating-pill {
+  align-items: center;
+  background: var(--surface-soft);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  display: inline-flex;
+  font-size: 0.76rem;
+  font-weight: 760;
+  gap: 5px;
+  min-height: 30px;
+  padding: 3px 7px 3px 4px;
+  white-space: nowrap;
+}
+
+.mini-avatar {
+  align-items: center;
+  border-radius: 50%;
+  color: #fff;
+  display: inline-flex;
+  font-size: 0.68rem;
+  font-weight: 850;
+  height: 22px;
+  justify-content: center;
+  width: 22px;
+}
+
 .manage-controls {
   align-items: end;
   display: grid;
   flex: 1;
   gap: 8px;
-  grid-template-columns: minmax(110px, 0.7fr) minmax(82px, 0.45fr) minmax(130px, 0.8fr);
+  grid-template-columns: minmax(110px, 0.7fr) minmax(82px, 0.45fr) minmax(130px, 0.8fr) minmax(72px, 0.4fr);
 }
 
 .reset-button {

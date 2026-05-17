@@ -29,6 +29,7 @@ type Chore = {
   title: string
   area: string
   cadence: string
+  intervalDays?: number | null
   minutes: number
   assigneeId: UserId
   dueDay: string
@@ -40,13 +41,15 @@ type Chore = {
 
 type NotificationSettings = {
   enabled: boolean
-  leadMinutes: number
+  reminderTime: string
 }
 
 const HOUSEHOLD_ID = 'houseops-home'
 const STORAGE_KEY = 'houseops-chores-v2'
 const USER_KEY = 'houseops-current-user'
 const NOTIFICATION_SETTINGS_KEY = 'houseops-notification-settings'
+const LJUBLJANA_TIME_ZONE = 'Europe/Ljubljana'
+const CUSTOM_CADENCE_VALUE = 'custom'
 
 const roommates: Roommate[] = [
   { id: 'nik', name: 'Nik', initials: 'N', color: '#0f766e' },
@@ -79,13 +82,7 @@ const dayLabels: Record<string, string> = {
   Ned: 'Nedelja',
 }
 
-const cadenceOptions = ['Dnevno', 'Tedensko', 'Dvakrat tedensko', 'Na dva tedna', 'Mesečno', 'Po potrebi']
-const reminderLeadOptions = [
-  { value: '0', label: 'Ob času opravila' },
-  { value: '15', label: '15 minut prej' },
-  { value: '30', label: '30 minut prej' },
-  { value: '60', label: '1 uro prej' },
-]
+const cadenceOptions = ['Dnevno', 'Tedensko', 'Dvakrat tedensko', 'Na dva tedna', 'Mesečno']
 
 const starterChores: Omit<Chore, 'id'>[] = [
   starter('Kuhinjski reset', 'Kuhinja', 'Dnevno', 18, 'nik', 'Pon', '20:00'),
@@ -119,6 +116,7 @@ function App() {
   const [newTitle, setNewTitle] = useState('')
   const [newArea, setNewArea] = useState('Kuhinja')
   const [newCadence, setNewCadence] = useState('Tedensko')
+  const [newCustomCadenceDays, setNewCustomCadenceDays] = useState(10)
   const [newAssignee, setNewAssignee] = useState<UserId>('nik')
   const [selectedDay, setSelectedDay] = useState('Pon')
   const [syncMode, setSyncMode] = useState<'firebase' | 'local'>(
@@ -211,15 +209,18 @@ function App() {
     const timers = chores
       .filter((chore) => chore.assigneeId === currentUser.id && !chore.done)
       .map((chore) => {
-        const delay = millisecondsUntilDue(chore.dueDay, chore.dueTime, notificationSettings.leadMinutes)
-        if (delay < 0 || delay > 1000 * 60 * 60 * 8) return null
+        const delay = millisecondsUntilLjubljanaReminder(chore.dueDay, notificationSettings.reminderTime)
+        if (delay < 0 || delay > 1000 * 60 * 60 * 24) return null
 
-        const key = `${currentUser.id}-${chore.id}-${new Date().toDateString()}`
+        const key = `${currentUser.id}-${chore.id}-${getLjubljanaDateKey()}-${notificationSettings.reminderTime}`
         if (window.sessionStorage.getItem(key)) return null
 
         return window.setTimeout(() => {
           window.sessionStorage.setItem(key, 'sent')
-          showNotification('HouseOps opomnik', `${currentUser.name}, čas je za: ${chore.title}`)
+          showNotification(
+            'HouseOps opomnik',
+            `${currentUser.name}, danes po ljubljanskem času: ${chore.title}`,
+          )
         }, Math.max(delay, 1000))
       })
       .filter((timer): timer is number => timer !== null)
@@ -239,7 +240,8 @@ function App() {
     const chore: Omit<Chore, 'id'> = {
       title,
       area: newArea.trim() || 'Splošno',
-      cadence: newCadence,
+      cadence: newCadence === CUSTOM_CADENCE_VALUE ? 'Po meri' : newCadence,
+      intervalDays: newCadence === CUSTOM_CADENCE_VALUE ? clampDays(newCustomCadenceDays) : null,
       minutes: 15,
       assigneeId: newAssignee,
       dueDay: selectedDay,
@@ -481,22 +483,19 @@ function App() {
               Opomniki so vklopljeni
             </label>
             <label>
-              Kdaj naj opomni?
-              <select
-                value={notificationSettings.leadMinutes.toString()}
+              Ura opomnika
+              <input
+                aria-label="Ura opomnika po ljubljanskem času"
+                type="time"
+                value={notificationSettings.reminderTime}
                 onChange={(event) =>
                   setNotificationSettings((current) => ({
                     ...current,
-                    leadMinutes: Number(event.target.value),
+                    reminderTime: event.target.value,
                   }))
                 }
-              >
-                {reminderLeadOptions.map((option) => (
-                  <option value={option.value} key={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
+              />
+              <span>Ljubljana čas</span>
             </label>
             <div className="notification-actions">
               <button className="ghost-button" type="button" onClick={requestNotifications}>
@@ -543,7 +542,7 @@ function App() {
               <div>
                 <strong>{chore.title}</strong>
                 <span>
-                  {chore.area} · {chore.cadence} · {chore.dueDay} {chore.dueTime}
+                  {chore.area} · {formatCadence(chore)} · {chore.dueDay} {chore.dueTime}
                 </span>
               </div>
               <select
@@ -596,13 +595,25 @@ function App() {
           <label>
             Pogostost
             <select value={newCadence} onChange={(event) => setNewCadence(event.target.value)}>
-              {cadenceOptions.map((cadence) => (
+              {[...cadenceOptions, CUSTOM_CADENCE_VALUE].map((cadence) => (
                 <option value={cadence} key={cadence}>
-                  {cadence}
+                  {cadence === CUSTOM_CADENCE_VALUE ? 'Po meri' : cadence}
                 </option>
               ))}
             </select>
           </label>
+          {newCadence === CUSTOM_CADENCE_VALUE && (
+            <label>
+              Na koliko dni?
+              <input
+                min="1"
+                max="365"
+                type="number"
+                value={newCustomCadenceDays}
+                onChange={(event) => setNewCustomCadenceDays(clampDays(event.target.value))}
+              />
+            </label>
+          )}
           <label>
             Oseba
             <select
@@ -632,8 +643,18 @@ function App() {
               <div>
                 <strong>{chore.title}</strong>
                 <span>
-                  {chore.area} · {chore.dueTime}
+                  {chore.area} · {formatCadence(chore)} · {chore.dueTime}
                 </span>
+              </div>
+              <div className="rating-summary" aria-label={`Ocene za ${chore.title}`}>
+                {roommates.map((roommate) => (
+                  <span className="rating-pill" key={roommate.id}>
+                    <span className="mini-avatar" style={{ backgroundColor: roommate.color }}>
+                      {roommate.initials}
+                    </span>
+                    {preferenceLabel(chore.ratings?.[roommate.id])}
+                  </span>
+                ))}
               </div>
               <div className="manage-controls">
                 <label>
@@ -667,16 +688,44 @@ function App() {
                 <label>
                   Pogostost
                   <select
-                    value={chore.cadence}
-                    onChange={(event) => void updateChore(chore.id, { cadence: event.target.value })}
+                    value={cadenceSelectValue(chore)}
+                    onChange={(event) =>
+                      void updateChore(chore.id, {
+                        cadence:
+                          event.target.value === CUSTOM_CADENCE_VALUE
+                            ? 'Po meri'
+                            : event.target.value,
+                        intervalDays:
+                          event.target.value === CUSTOM_CADENCE_VALUE
+                            ? customCadenceDays(chore)
+                            : null,
+                      })
+                    }
                   >
-                    {cadenceOptions.map((cadence) => (
+                    {[...cadenceOptions, CUSTOM_CADENCE_VALUE].map((cadence) => (
                       <option value={cadence} key={cadence}>
-                        {cadence}
+                        {cadence === CUSTOM_CADENCE_VALUE ? 'Po meri' : cadence}
                       </option>
                     ))}
                   </select>
                 </label>
+                {isCustomCadence(chore) && (
+                  <label>
+                    Dni
+                    <input
+                      min="1"
+                      max="365"
+                      type="number"
+                      value={customCadenceDays(chore)}
+                      onChange={(event) =>
+                        void updateChore(chore.id, {
+                          cadence: 'Po meri',
+                          intervalDays: clampDays(event.target.value),
+                        })
+                      }
+                    />
+                  </label>
+                )}
               </div>
               <button
                 aria-label={`Izbriši ${chore.title}`}
@@ -771,7 +820,7 @@ function ChoreRow({
       <div className="chore-main">
         <strong>{chore.title}</strong>
         <span>
-          {chore.area} · {chore.cadence} · {chore.minutes} min
+          {chore.area} · {formatCadence(chore)} · {chore.minutes} min
         </span>
       </div>
       {!readOnly && (
@@ -831,6 +880,7 @@ function starter(
     title,
     area,
     cadence,
+    intervalDays: null,
     minutes,
     assigneeId,
     dueDay,
@@ -864,15 +914,17 @@ function loadCurrentUser(): UserId | null {
 function loadNotificationSettings(): NotificationSettings {
   try {
     const stored = window.localStorage.getItem(NOTIFICATION_SETTINGS_KEY)
-    const parsed = stored ? (JSON.parse(stored) as Partial<NotificationSettings>) : {}
+    const parsed = stored
+      ? (JSON.parse(stored) as Partial<NotificationSettings> & { leadMinutes?: number })
+      : {}
     return {
       enabled: parsed.enabled ?? true,
-      leadMinutes: typeof parsed.leadMinutes === 'number' ? parsed.leadMinutes : 15,
+      reminderTime: isValidTime(parsed.reminderTime) ? parsed.reminderTime : '09:00',
     }
   } catch {
     return {
       enabled: true,
-      leadMinutes: 15,
+      reminderTime: '09:00',
     }
   }
 }
@@ -882,12 +934,14 @@ function normalizeChore(id: string, value: unknown): Chore {
     ownerId?: UserId
     preference?: Preference
   }
+  const normalizedCadence = normalizeCadence(chore.cadence)
 
   return {
     id,
     title: chore.title ?? 'Opravilo',
     area: chore.area ?? 'Splošno',
-    cadence: chore.cadence ?? 'Tedensko',
+    cadence: normalizedCadence.cadence,
+    intervalDays: normalizedCadence.intervalDays ?? validIntervalDays(chore.intervalDays),
     minutes: chore.minutes ?? 15,
     assigneeId: chore.assigneeId ?? chore.ownerId ?? 'nik',
     dueDay: days.includes(chore.dueDay ?? '') ? chore.dueDay ?? 'Pon' : 'Pon',
@@ -904,7 +958,7 @@ function getNotificationPermission(): NotificationPermission | 'unsupported' {
 }
 
 function notificationStatusText(permission: NotificationPermission | 'unsupported') {
-  if (permission === 'granted') return 'Vklopljeno. Opomniki se prikažejo za tvoja današnja opravila.'
+  if (permission === 'granted') return 'Vklopljeno. Opomniki se prikažejo ob izbrani uri po ljubljanskem času.'
   if (permission === 'denied') return 'Blokirano v brskalniku. Dovoli obvestila v nastavitvah strani.'
   if (permission === 'unsupported') return 'Ta brskalnik ne podpira obvestil.'
   return 'Vklopi obvestila in preizkusi testni opomnik.'
@@ -919,15 +973,125 @@ function showNotification(title: string, body: string) {
   })
 }
 
-function millisecondsUntilDue(day: string, time: string, leadMinutes: number) {
+function preferenceLabel(preference?: Preference) {
+  return preferenceOptions.find((option) => option.value === preference)?.shortLabel ?? 'Brez'
+}
+
+function formatCadence(chore: Pick<Chore, 'cadence' | 'intervalDays'>) {
+  return isCustomCadence(chore) ? customCadenceLabel(customCadenceDays(chore)) : chore.cadence
+}
+
+function cadenceSelectValue(chore: Pick<Chore, 'cadence' | 'intervalDays'>) {
+  return isCustomCadence(chore) ? CUSTOM_CADENCE_VALUE : chore.cadence
+}
+
+function isCustomCadence(chore: Pick<Chore, 'cadence' | 'intervalDays'>) {
+  return chore.cadence === 'Po meri' || validIntervalDays(chore.intervalDays) !== null
+}
+
+function customCadenceDays(chore: Pick<Chore, 'cadence' | 'intervalDays'>) {
+  return validIntervalDays(chore.intervalDays) ?? 10
+}
+
+function customCadenceLabel(daysValue: number) {
+  return `Vsakih ${clampDays(daysValue)} dni`
+}
+
+function normalizeCadence(cadence?: string) {
+  if (!cadence || cadence === 'Po potrebi') {
+    return { cadence: 'Po meri', intervalDays: 10 }
+  }
+
+  const match = cadence.match(/^Vsakih (\d+) dni$/)
+  if (match) {
+    return { cadence: 'Po meri', intervalDays: clampDays(match[1]) }
+  }
+
+  return {
+    cadence: cadenceOptions.includes(cadence) || cadence === 'Po meri' ? cadence : 'Tedensko',
+    intervalDays: null,
+  }
+}
+
+function validIntervalDays(value: unknown) {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return null
+  return clampDays(value)
+}
+
+function clampDays(value: string | number) {
+  const parsed = Number(value)
+  if (Number.isNaN(parsed)) return 1
+  return Math.min(365, Math.max(1, Math.round(parsed)))
+}
+
+function isValidTime(value: unknown): value is string {
+  return typeof value === 'string' && /^\d{2}:\d{2}$/.test(value)
+}
+
+function millisecondsUntilLjubljanaReminder(day: string, time: string) {
   const now = new Date()
-  const target = new Date(now)
+  const today = getLjubljanaDay()
   const [hours, minutes] = time.split(':').map(Number)
-  const today = days[(now.getDay() + 6) % 7]
   if (day !== today || Number.isNaN(hours) || Number.isNaN(minutes)) return -1
-  target.setHours(hours, minutes, 0, 0)
-  target.setMinutes(target.getMinutes() - leadMinutes)
+  const parts = getLjubljanaDateParts(now)
+  const target = zonedDateTimeToDate(parts.year, parts.month, parts.day, hours, minutes)
   return target.getTime() - now.getTime()
+}
+
+function getLjubljanaDay() {
+  const parts = getLjubljanaDateParts(new Date())
+  const date = new Date(Date.UTC(parts.year, parts.month - 1, parts.day))
+  return days[(date.getUTCDay() + 6) % 7]
+}
+
+function getLjubljanaDateKey() {
+  const parts = getLjubljanaDateParts(new Date())
+  return `${parts.year}-${String(parts.month).padStart(2, '0')}-${String(parts.day).padStart(2, '0')}`
+}
+
+function getLjubljanaDateParts(date: Date) {
+  const parts = new Intl.DateTimeFormat('en-GB', {
+    day: '2-digit',
+    month: '2-digit',
+    timeZone: LJUBLJANA_TIME_ZONE,
+    year: 'numeric',
+  }).formatToParts(date)
+
+  return {
+    day: Number(parts.find((part) => part.type === 'day')?.value),
+    month: Number(parts.find((part) => part.type === 'month')?.value),
+    year: Number(parts.find((part) => part.type === 'year')?.value),
+  }
+}
+
+function zonedDateTimeToDate(year: number, month: number, day: number, hours: number, minutes: number) {
+  const utcGuess = Date.UTC(year, month - 1, day, hours, minutes, 0, 0)
+  const offset = getTimeZoneOffset(new Date(utcGuess))
+  return new Date(utcGuess - offset)
+}
+
+function getTimeZoneOffset(date: Date) {
+  const parts = new Intl.DateTimeFormat('en-GB', {
+    day: '2-digit',
+    hour: '2-digit',
+    hourCycle: 'h23',
+    minute: '2-digit',
+    month: '2-digit',
+    second: '2-digit',
+    timeZone: LJUBLJANA_TIME_ZONE,
+    year: 'numeric',
+  }).formatToParts(date)
+
+  const values = Object.fromEntries(parts.map((part) => [part.type, part.value]))
+  const asUtc = Date.UTC(
+    Number(values.year),
+    Number(values.month) - 1,
+    Number(values.day),
+    Number(values.hour),
+    Number(values.minute),
+    Number(values.second),
+  )
+  return asUtc - date.getTime()
 }
 
 export default App
