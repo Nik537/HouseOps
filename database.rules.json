@@ -10,7 +10,7 @@
           ".indexOn": ["createdAt", "dueDay", "assigneeId"],
           "$choreId": {
             ".write": true,
-            ".validate": "!newData.exists() || newData.hasChildren(['title', 'area', 'cadence', 'minutes', 'assigneeId', 'dueDay', 'dueTime', 'done'])",
+            ".validate": "!newData.exists() || newData.hasChildren(['title', 'area', 'cadence', 'minutes', 'assigneeId', 'dueDay', 'done'])",
             "title": {
               ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 80"
             },
@@ -33,7 +33,7 @@
               ".validate": "newData.val() === 'Pon' || newData.val() === 'Tor' || newData.val() === 'Sre' || newData.val() === 'Čet' || newData.val() === 'Pet' || newData.val() === 'Sob' || newData.val() === 'Ned'"
             },
             "dueTime": {
-              ".validate": "newData.isString() && newData.val().matches(/^([01][0-9]|2[0-3]):[0-5][0-9]$/)"
+              ".validate": "newData.val() === null || (newData.isString() && newData.val().matches(/^([01][0-9]|2[0-3]):[0-5][0-9]$/))"
             },
             "ratings": {
               "$userId": {

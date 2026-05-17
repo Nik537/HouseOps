@@ -32,7 +32,7 @@ type Chore = {
   minutes: number
   assigneeId: UserId
   dueDay: string
-  dueTime: string
+  dueTime?: string | null
   ratings: Partial<Record<UserId, Preference>>
   done: boolean
   createdAt?: number
@@ -84,26 +84,26 @@ const dayLabels: Record<string, string> = {
 const cadenceOptions = ['Dnevno', 'Tedensko', 'Dvakrat tedensko', 'Na dva tedna', 'Mesečno']
 
 const starterChores: Omit<Chore, 'id'>[] = [
-  starter('Kuhinjski reset', 'Kuhinja', 'Dnevno', 18, 'nik', 'Pon', '20:00'),
-  starter('Očisti kopalnico', 'Kopalnica', 'Tedensko', 35, 'lucia', 'Sob', '11:00'),
-  starter('Odnesi smeti', 'Smeti', 'Tor / Pet', 8, 'gaj', 'Tor', '21:00'),
-  starter('Posesaj dnevno sobo', 'Dnevna soba', 'Tedensko', 22, 'kaja', 'Čet', '18:30'),
-  starter('Pomij kuhinjska tla', 'Kuhinja', 'Tedensko', 20, 'nik', 'Ned', '17:00'),
-  starter('Izprazni pomivalni stroj', 'Kuhinja', 'Dnevno', 7, 'lucia', 'Sre', '08:30'),
-  starter('Obriši pulte', 'Kuhinja', 'Dnevno', 10, 'gaj', 'Pon', '21:00'),
-  starter('Preglej hladilnik', 'Kuhinja', 'Mesečno', 25, 'kaja', 'Ned', '12:00'),
-  starter('Odnesi reciklažo', 'Smeti', 'Tedensko', 10, 'nik', 'Sre', '19:30'),
-  starter('Loči steklenice', 'Smeti', 'Na dva tedna', 12, 'lucia', 'Ned', '16:00'),
-  starter('Uredi pralni kot', 'Pralnica', 'Tedensko', 16, 'gaj', 'Pet', '18:00'),
-  starter('Operi kopalniške preproge', 'Kopalnica', 'Na dva tedna', 30, 'kaja', 'Sob', '13:00'),
-  starter('Pobriši prah s polic', 'Dnevna soba', 'Tedensko', 18, 'nik', 'Pet', '17:30'),
-  starter('Zamenjaj brisače za roke', 'Kopalnica', 'Dvakrat tedensko', 6, 'lucia', 'Čet', '09:00'),
-  starter('Zalij rastline', 'Skupni prostori', 'Dvakrat tedensko', 9, 'gaj', 'Sob', '10:00'),
-  starter('Dopolni toaletni papir', 'Kopalnica', 'Tedensko', 5, 'kaja', 'Sre', '18:00'),
-  starter('Uredi čevlje v predsobi', 'Predsoba', 'Dnevno', 6, 'nik', 'Tor', '20:30'),
-  starter('Operi odeje s kavča', 'Dnevna soba', 'Mesečno', 28, 'lucia', 'Ned', '14:00'),
-  starter('Preveri osnovna živila', 'Kuhinja', 'Tedensko', 14, 'gaj', 'Pon', '18:00'),
-  starter('Globinsko očisti štedilnik', 'Kuhinja', 'Tedensko', 24, 'kaja', 'Sob', '15:00'),
+  starter('Kuhinjski reset', 'Kuhinja', 'Dnevno', 18, 'nik', 'Pon'),
+  starter('Očisti kopalnico', 'Kopalnica', 'Tedensko', 35, 'lucia', 'Sob'),
+  starter('Odnesi smeti', 'Smeti', 'Tor / Pet', 8, 'gaj', 'Tor'),
+  starter('Posesaj dnevno sobo', 'Dnevna soba', 'Tedensko', 22, 'kaja', 'Čet'),
+  starter('Pomij kuhinjska tla', 'Kuhinja', 'Tedensko', 20, 'nik', 'Ned'),
+  starter('Izprazni pomivalni stroj', 'Kuhinja', 'Dnevno', 7, 'lucia', 'Sre'),
+  starter('Obriši pulte', 'Kuhinja', 'Dnevno', 10, 'gaj', 'Pon'),
+  starter('Preglej hladilnik', 'Kuhinja', 'Mesečno', 25, 'kaja', 'Ned'),
+  starter('Odnesi reciklažo', 'Smeti', 'Tedensko', 10, 'nik', 'Sre'),
+  starter('Loči steklenice', 'Smeti', 'Na dva tedna', 12, 'lucia', 'Ned'),
+  starter('Uredi pralni kot', 'Pralnica', 'Tedensko', 16, 'gaj', 'Pet'),
+  starter('Operi kopalniške preproge', 'Kopalnica', 'Na dva tedna', 30, 'kaja', 'Sob'),
+  starter('Pobriši prah s polic', 'Dnevna soba', 'Tedensko', 18, 'nik', 'Pet'),
+  starter('Zamenjaj brisače za roke', 'Kopalnica', 'Dvakrat tedensko', 6, 'lucia', 'Čet'),
+  starter('Zalij rastline', 'Skupni prostori', 'Dvakrat tedensko', 9, 'gaj', 'Sob'),
+  starter('Dopolni toaletni papir', 'Kopalnica', 'Tedensko', 5, 'kaja', 'Sre'),
+  starter('Uredi čevlje v predsobi', 'Predsoba', 'Dnevno', 6, 'nik', 'Tor'),
+  starter('Operi odeje s kavča', 'Dnevna soba', 'Mesečno', 28, 'lucia', 'Ned'),
+  starter('Preveri osnovna živila', 'Kuhinja', 'Tedensko', 14, 'gaj', 'Pon'),
+  starter('Globinsko očisti štedilnik', 'Kuhinja', 'Tedensko', 24, 'kaja', 'Sob'),
 ]
 
 function App() {
@@ -257,7 +257,7 @@ function App() {
       minutes: 15,
       assigneeId: newAssignee,
       dueDay: selectedDay,
-      dueTime: '18:00',
+      dueTime: null,
       ratings: currentUserId ? { [currentUserId]: 'neutral' } : {},
       done: false,
       createdAt: Date.now(),
@@ -545,7 +545,7 @@ function App() {
               <div>
                 <strong>{chore.title}</strong>
                 <span>
-                  {chore.area} · {formatCadence(chore)} · {chore.dueDay} {chore.dueTime}
+                  {chore.area} · {formatCadence(chore)} · {chore.dueDay}
                 </span>
               </div>
               <select
@@ -648,7 +648,7 @@ function App() {
               <div>
                 <strong>{chore.title}</strong>
                 <span>
-                  {chore.area} · {formatCadence(chore)} · {chore.dueTime}
+                  {chore.area} · {formatCadence(chore)}
                 </span>
               </div>
               <div className="rating-summary" aria-label={`Ocene za ${chore.title}`}>
@@ -868,7 +868,7 @@ function ChoreRow({
       )}
       <span className="owner-chip" style={{ borderColor: assignee.color }}>
         <Heart size={13} />
-        {chore.dueDay} {chore.dueTime}
+        {chore.dueDay}
       </span>
       {!readOnly && onDelete && (
         <button
@@ -891,7 +891,6 @@ function starter(
   minutes: number,
   assigneeId: UserId,
   dueDay: string,
-  dueTime: string,
 ): Omit<Chore, 'id'> {
   return {
     title,
@@ -901,7 +900,7 @@ function starter(
     minutes,
     assigneeId,
     dueDay,
-    dueTime,
+    dueTime: null,
     ratings: {},
     done: false,
   }
@@ -962,7 +961,7 @@ function normalizeChore(id: string, value: unknown): Chore {
     minutes: chore.minutes ?? 15,
     assigneeId: chore.assigneeId ?? chore.ownerId ?? 'nik',
     dueDay: days.includes(chore.dueDay ?? '') ? chore.dueDay ?? 'Pon' : 'Pon',
-    dueTime: chore.dueTime ?? '18:00',
+    dueTime: typeof chore.dueTime === 'string' ? chore.dueTime : null,
     ratings: chore.ratings ?? (chore.preference ? { nik: chore.preference } : {}),
     done: Boolean(chore.done),
     createdAt: chore.createdAt ?? Date.now(),
