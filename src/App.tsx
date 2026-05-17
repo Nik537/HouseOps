@@ -657,6 +657,14 @@ function App() {
                 ))}
               </div>
               <div className="manage-controls">
+                <label className="done-field">
+                  Končano
+                  <input
+                    checked={chore.done}
+                    type="checkbox"
+                    onChange={(event) => void updateChore(chore.id, { done: event.target.checked })}
+                  />
+                </label>
                 <label>
                   Oseba
                   <select
@@ -809,14 +817,18 @@ function ChoreRow({
 
   return (
     <article className={`${compact ? 'chore-row compact' : 'chore-row'}${readOnly ? ' read-only' : ''}`}>
-      <button
-        className={chore.done ? 'done-toggle complete' : 'done-toggle'}
-        type="button"
-        aria-label={`${chore.done ? 'Označi kot nedokončano' : 'Označi kot končano'}: ${chore.title}`}
-        onClick={() => void onUpdate(chore.id, { done: !chore.done })}
-      >
-        <Check size={16} />
-      </button>
+      <label className={chore.done ? 'done-check complete' : 'done-check'}>
+        <input
+          checked={chore.done}
+          type="checkbox"
+          aria-label={`Končano: ${chore.title}`}
+          onChange={(event) => void onUpdate(chore.id, { done: event.target.checked })}
+        />
+        <span>
+          <Check size={15} />
+        </span>
+        Končano
+      </label>
       <div className="chore-main">
         <strong>{chore.title}</strong>
         <span>

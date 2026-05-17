@@ -353,34 +353,61 @@ button {
   border-radius: 8px;
   display: grid;
   gap: 10px;
-  grid-template-columns: auto minmax(180px, 1fr) minmax(92px, 118px) minmax(100px, 130px) auto auto;
+  grid-template-columns: minmax(112px, auto) minmax(180px, 1fr) minmax(92px, 118px) minmax(100px, 130px) auto auto;
   min-height: 68px;
   padding: 10px;
 }
 
 .chore-row.read-only {
-  grid-template-columns: auto minmax(180px, 1fr) auto;
+  grid-template-columns: minmax(112px, auto) minmax(180px, 1fr) auto;
 }
 
 .chore-row.compact {
   box-shadow: none;
 }
 
-.done-toggle {
+.done-check {
   align-items: center;
   background: var(--surface-soft);
   border: 1px solid var(--border);
   border-radius: 8px;
-  color: transparent;
+  color: var(--muted);
   display: inline-flex;
-  height: 38px;
+  font-size: 0.78rem;
+  font-weight: 850;
+  gap: 7px;
+  min-height: 38px;
   justify-content: center;
-  width: 38px;
+  padding: 0 10px 0 8px;
+  white-space: nowrap;
 }
 
-.done-toggle.complete {
+.done-check input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.done-check span {
+  align-items: center;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: transparent;
+  display: inline-flex;
+  height: 22px;
+  justify-content: center;
+  width: 22px;
+}
+
+.done-check.complete {
   background: var(--teal);
   border-color: var(--teal);
+  color: #fff;
+}
+
+.done-check.complete span {
+  background: rgba(255, 255, 255, 0.18);
+  border-color: rgba(255, 255, 255, 0.55);
   color: #fff;
 }
 
@@ -706,7 +733,14 @@ button {
   display: grid;
   flex: 1;
   gap: 8px;
-  grid-template-columns: minmax(110px, 0.7fr) minmax(82px, 0.45fr) minmax(130px, 0.8fr) minmax(72px, 0.4fr);
+  grid-template-columns: minmax(82px, 0.45fr) minmax(110px, 0.7fr) minmax(82px, 0.45fr) minmax(130px, 0.8fr) minmax(72px, 0.4fr);
+}
+
+.done-field input[type="checkbox"] {
+  accent-color: var(--teal);
+  height: 20px;
+  justify-self: start;
+  width: 20px;
 }
 
 .reset-button {
@@ -743,7 +777,7 @@ button {
 
   .chore-row,
   .chore-row.read-only {
-    grid-template-columns: auto minmax(0, 1fr) auto;
+    grid-template-columns: minmax(104px, auto) minmax(0, 1fr) auto;
   }
 
   .chore-row:not(.read-only) select,
